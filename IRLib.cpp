@@ -1,5 +1,5 @@
-/* IRLib.cpp from IRLib - an Arduino library for infrared encoding and decoding
- * Version 1.33   January 2014
+/* IRLib.cpp from IRLib – an Arduino library for infrared encoding and decoding
+ * Version 1.32   January 2014
  * Copyright 2014 by Chris Young http://cyborg5.com
  *
  * This library is a major rewrite of IRemote by Ken Shirriff which was covered by
@@ -39,10 +39,9 @@ volatile irparams_t irparams;
 const __FlashStringHelper *Pnames(IRTYPES Type) {
   if(Type>LAST_PROTOCOL) Type=UNKNOWN;
   // You can add additional strings before the entry for hash code.
-  const __FlashStringHelper *Names[LAST_PROTOCOL+1]={F("Unknown"),F("NEC"),F("Sony"),F("RC5"),F("RC6"),F("Panasonic Old"),F("JVC"),F("NECx"),F("Hash Code")};
+  const __FlashStringHelper *Names[LAST_PROTOCOL+1]={F("Unknown"),F("NEC"),F("Sony"),F("RC5"),F("RC6"),F("Panasonic Old"),F("JVC"),F("NECx"),F("Panasonic"),F("Hash Code")};
   return Names[Type];
 };
-
 
 #define TOPBIT 0x80000000
 
@@ -68,7 +67,7 @@ const __FlashStringHelper *Pnames(IRTYPES Type) {
  */
 void IRsendBase::sendGeneric(unsigned long data, unsigned char Num_Bits, unsigned int Head_Mark, unsigned int Head_Space, 
                              unsigned int Mark_One, unsigned int Mark_Zero, unsigned int Space_One, unsigned int Space_Zero, 
-							 unsigned char kHz, bool Use_Stop, unsigned long Max_Extent) {
+														 unsigned char kHz, bool Use_Stop, unsigned long Max_Extent) {
   Extent=0;
   data = data << (32 - Num_Bits);
   enableIROut(kHz);
@@ -77,10 +76,12 @@ void IRsendBase::sendGeneric(unsigned long data, unsigned char Num_Bits, unsigne
   if(Head_Space) space(Head_Space);
   for (int i = 0; i <Num_Bits; i++) {
     if (data & TOPBIT) {
-      mark(Mark_One);  space(Space_One);
+      mark(Mark_One);
+      space(Space_One);
     } 
     else {
-      mark(Mark_Zero);  space(Space_Zero);
+      mark(Mark_Zero);
+      space(Space_Zero);
     }
     data <<= 1;
   }
@@ -88,10 +89,10 @@ void IRsendBase::sendGeneric(unsigned long data, unsigned char Num_Bits, unsigne
   if(Max_Extent) {
 #ifdef TRACE
     Serial.print("Max_Extent="); Serial.println(Max_Extent);
-	Serial.print("Extent="); Serial.println(Extent);
-	Serial.print("Difference="); Serial.println(Max_Extent-Extent);
+	  Serial.print("Extent="); Serial.println(Extent);
+	  Serial.print("Difference="); Serial.println(Max_Extent-Extent);
 #endif
-	space(Max_Extent-Extent); 
+	  space(Max_Extent-Extent); 
 	}
 	else space(Space_One);
 };
@@ -131,6 +132,39 @@ void IRsendPanasonic_Old::send(unsigned long data)
 {
   sendGeneric(data,22, 833*4, 833*4, 833, 833, 833*3, 833,57, true);
 };
+
+#define PANASONIC_HDR_MARK   3400 //3502
+#define PANASONIC_HDR_SPACE  1800 //1750
+#define PANASONIC_BIT_MARK    400 //502
+#define PANASONIC_ONE_SPACE  1400 //1244
+#define PANASONIC_ZERO_SPACE  500 //400
+void IRsendPanasonic::send(unsigned int address, unsigned long data)
+{
+  enableIROut(35);
+  mark(PANASONIC_HDR_MARK);
+  space(PANASONIC_HDR_SPACE);
+  
+  for(int i=0;i<16;i++) {
+    mark(PANASONIC_BIT_MARK);
+    if (address & 0x8000) {
+      space(PANASONIC_ONE_SPACE);
+    } else {
+      space(PANASONIC_ZERO_SPACE);
+    }
+    address <<= 1;        
+  }    
+  for (int i=0; i < 32; i++) {
+    mark(PANASONIC_BIT_MARK);
+    if (data & TOPBIT) {
+      space(PANASONIC_ONE_SPACE);
+    } else {
+      space(PANASONIC_ZERO_SPACE);
+    }
+    data <<= 1;
+  }
+  mark(PANASONIC_BIT_MARK);
+  space(0);
+}
 
 /*
  * JVC omits the mark/space header on repeat sending. Therefore we multiply it by 0 if it's a repeat.
@@ -185,10 +219,12 @@ void IRsendRC5::send(unsigned long data)
   //mark(RC5_T1); // Second start bit
   for (unsigned char i = 0; i < 13; i++) {
     if (data & TOPBIT) {
-      space(RC5_T1); mark(RC5_T1);// 1 is space, then mark
+      space(RC5_T1);
+      mark(RC5_T1);// 1 is space, then mark
     } 
     else {
-      mark(RC5_T1);  space(RC5_T1);// 0 is mark, then space
+      mark(RC5_T1);
+      space(RC5_T1);// 0 is mark, then space
     }
     data <<= 1;
   }
@@ -217,10 +253,12 @@ void IRsendRC6::send(unsigned long data, unsigned char nbits)
       t = RC6_T1;
     }
     if (data & TOPBIT) {
-      mark(t); space(t);//"1" is a Mark/space
+      mark(t);
+      space(t);//"1" is a Mark/space
     } 
     else {
-      space(t); mark(t);//"0" is a space/Mark
+      space(t);
+      mark(t);//"0" is a space/Mark
     }
     data <<= 1;
   }
@@ -239,6 +277,7 @@ void IRsend::send(IRTYPES Type, unsigned long data, unsigned int data2) {
     case RC5:           IRsendRC5::send(data); break;
     case RC6:           IRsendRC6::send(data,data2); break;
     case PANASONIC_OLD: IRsendPanasonic_Old::send(data); break;
+    case PANASONIC:     IRsendPanasonic::send(data,data2); break;
     case NECX:          IRsendNECx::send(data); break;    
     case JVC:           IRsendJVC::send(data,(bool)data2); break;
   //case ADDITIONAL:    IRsendADDITIONAL::send(data); break;//add additional protocols here
@@ -276,8 +315,8 @@ void IRdecodeBase::UseExtnBuf(void *P){
  * for usage.
  */
 void IRdecodeBase::copyBuf (IRdecodeBase *source){
-   memcpy((void *)rawbuf,(const void *)source->rawbuf,sizeof(irparams.rawbuf));
-   rawlen=source->rawlen;
+  memcpy((void *)rawbuf,(const void *)source->rawbuf,sizeof(irparams.rawbuf));
+  rawlen=source->rawlen;
 };
 
 /*
@@ -302,9 +341,16 @@ void IRdecodeBase::DumpResults(void) {
   int i;unsigned long Extent;int interval;
   if(decode_type<=LAST_PROTOCOL){
     Serial.print(F("Decoded ")); Serial.print(Pnames(decode_type));
-    Serial.print(F(": Value:")); Serial.print(value, HEX);
+    if(decode_type==PANASONIC){
+    	Serial.print(F(" Adress: 0x")); Serial.print(panasonicAddress, HEX);
+    	Serial.print(F(" (16 bits)"));
+    }
+    Serial.print(F(": Value: 0x")); Serial.print(value, HEX);
+    if(decode_type==PANASONIC){
+    	Serial.print(F(" (32 bits)"));
+    }
   };
-  Serial.print(F(" ("));  Serial.print(bits, DEC); Serial.println(F(" bits)"));
+  Serial.print(F(" (")); Serial.print(bits, DEC); Serial.println(F(" bits)"));
   Serial.print(F("Raw samples(")); Serial.print(rawlen, DEC);
   Serial.print(F("): Gap:")); Serial.println(rawbuf[0], DEC);
   Serial.print(F("  Head: m")); Serial.print(rawbuf[1], DEC);
@@ -330,7 +376,7 @@ void IRdecodeBase::DumpResults(void) {
     if ((j % 32)==1)Serial.println();
   }
   Serial.println();
-  Serial.print(F("Extent="));  Serial.println(Extent,DEC);
+  Serial.print(F("Extent=")); Serial.println(Extent,DEC);
   Serial.print(F("Mark  min:")); Serial.print(LowMark,DEC);Serial.print(F("\t max:")); Serial.println(HiMark,DEC);
   Serial.print(F("Space min:")); Serial.print(LowSpace,DEC);Serial.print(F("\t max:")); Serial.println(HiSpace,DEC);
   Serial.println();
@@ -348,8 +394,8 @@ bool IRdecodeBase::decodeGeneric(unsigned char Raw_Count, unsigned int Head_Mark
 // If raw samples count or head mark are zero then don't perform these tests.
 // Some protocols need to do custom header work.
   unsigned long data = 0;  unsigned char Max; unsigned char offset;
-  if (Raw_Count) {if (rawlen != Raw_Count) return RAW_COUNT_ERROR;}
-  if (Head_Mark) {if (!MATCH(rawbuf[1],Head_Mark))    return HEADER_MARK_ERROR;}
+  if (Raw_Count)  {if (rawlen != Raw_Count)          return RAW_COUNT_ERROR;}
+  if (Head_Mark)  {if (!MATCH(rawbuf[1],Head_Mark))  return HEADER_MARK_ERROR;}
   if (Head_Space) {if (!MATCH(rawbuf[2],Head_Space)) return HEADER_SPACE_ERROR;}
 
   if (Mark_One) {//Length of a mark indicates data "0" or "1". Space_Zero is ignored.
@@ -408,6 +454,7 @@ bool IRdecode::decode(void) {
   if (IRdecodeRC5::decode()) return true;
   if (IRdecodeRC6::decode()) return true;
   if (IRdecodePanasonic_Old::decode()) return true;
+  if (IRdecodePanasonic::decode()) return true;
   if (IRdecodeNECx::decode()) return true;
   if (IRdecodeJVC::decode()) return true;
 //if (IRdecodeADDITIONAL::decode()) return true;//add additional protocols here
@@ -421,8 +468,7 @@ bool IRdecode::decode(void) {
 bool IRdecodeNEC::decode(void) {
   ATTEMPT_MESSAGE(F("NEC"));
   // Check for repeat
-  if (rawlen == 4 && MATCH(rawbuf[2], NEC_RPT_SPACE) &&
-    MATCH(rawbuf[3],564)) {
+  if (rawlen == 4 && MATCH(rawbuf[2], NEC_RPT_SPACE) && MATCH(rawbuf[3],564)) {
     bits = 0;
     value = REPEAT;
     decode_type = NEC;
@@ -449,7 +495,7 @@ bool IRdecodeSony::decode(void) {
  */
 
 /*
- * A very good source for protocol information is... http://www.hifi-remote.com/johnsfine/DecodeIR.html
+ * A very good source for protocol information is… http://www.hifi-remote.com/johnsfine/DecodeIR.html
  * I used that information to understand what they call the "Panasonic old" protocol which is used by
  * Scientific Atlanta cable boxes. That website uses a very strange notation called IRP notation.
  * For this protocol, the notation was:
@@ -467,7 +513,7 @@ bool IRdecodeSony::decode(void) {
  */
 bool IRdecodePanasonic_Old::decode(void) {
   ATTEMPT_MESSAGE(F("Panasonic_Old"));
-  if(!decodeGeneric(48,833*4,833*4,0,833,833*3,833)) return false;
+  if(!decodeGeneric(48,833*4,833*4,0,833,833*3,833)) return false;	//Original
   /*
    * The protocol spec says that the first 11 bits described the device and function.
    * The next 11 bits are the same thing only it is the logical Bitwise complement.
@@ -482,6 +528,45 @@ bool IRdecodePanasonic_Old::decode(void) {
   if (S1!=S2) {REJECTION_MESSAGE(F("inverted bit redundancy")); return false;};
   // Success
   decode_type = PANASONIC_OLD;
+  return true;
+}
+
+#define PANASONIC_HDR_MARK   3400 //3502
+#define PANASONIC_HDR_SPACE  1800 //1750
+#define PANASONIC_BIT_MARK    400 //502
+#define PANASONIC_ONE_SPACE  1400 //1244
+#define PANASONIC_ZERO_SPACE  500 //400
+bool IRdecodePanasonic::decode(void) {
+  ATTEMPT_MESSAGE(F("Panasonic"));
+  unsigned long long data = 0;
+  unsigned char Max;
+  unsigned char offset = 1;
+  
+  if (!MATCH(rawbuf[offset], PANASONIC_HDR_MARK))  return HEADER_MARK_ERROR;
+  offset++;
+  if (!MATCH(rawbuf[offset], PANASONIC_HDR_SPACE)) return HEADER_SPACE_ERROR;
+  
+  // decode address
+  Max=rawlen-1; //ignore stop bit
+  offset=3;//skip initial gap plus two header items
+  while (offset < Max) {
+    if (!MATCH (rawbuf[offset],PANASONIC_BIT_MARK)) return DATA_MARK_ERROR;
+    offset++;
+    if (MATCH(rawbuf[offset],PANASONIC_ONE_SPACE)) {
+      data = (data << 1) | 1;
+    } 
+    else if (MATCH (rawbuf[offset],PANASONIC_ZERO_SPACE)) {
+      data <<= 1;
+    } 
+    else return DATA_SPACE_ERROR;
+    offset++;
+  }
+  bits = (offset - 1) / 2 -1;//didn't encode stop bit
+  
+  // Success
+  value = (unsigned long) data;
+  panasonicAddress = (unsigned int)(data >> 32);
+  decode_type = PANASONIC;
   return true;
 }
 
@@ -669,14 +754,15 @@ bool IRdecodeHash::decode(void) {
 
 /* We have created a new receiver base class so that we can use its code to implement
  * additional receiver classes in addition to the original IRremote code which used
- * 50us interrupt sampling of the input pin. See IRrecvLoop and IRrecvPCI classes
- * below. IRrecv is the original receiver class with the 50us sampling.
+ * 50µs interrupt sampling of the input pin. See IRrecvLoop and IRrecvPCI classes
+ * below. IRrecv is the original receiver class with the 50µs sampling.
  */
 IRrecvBase::IRrecvBase(unsigned char recvpin)
 {
   irparams.recvpin = recvpin;
   Init();
 }
+
 void IRrecvBase::Init(void) {
   irparams.blinkflag = 0;
   Mark_Excess=100;
@@ -830,10 +916,6 @@ bool IRrecvPCI::GetResults(IRdecodeBase *decoder) {
   return true;
 };
 
- 
- 
- 
- 
 /*
  * The remainder of this file is all related to interrupt handling and hardware issues. It has 
  * nothing to do with IR protocols. You need not understand this is all you're doing is adding 
@@ -849,7 +931,7 @@ bool IRrecvPCI::GetResults(IRdecodeBase *decoder) {
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 #define CLKFUDGE 5      // fudge factor for clock interrupt overhead
-#ifdef F_CPU
+#ifdef  F_CPU
 #define SYSCLOCK F_CPU     // main Arduino clock
 #else
 #define SYSCLOCK 16000000  // main Arduino clock
@@ -867,13 +949,12 @@ bool IRrecvPCI::GetResults(IRdecodeBase *decoder) {
  * and doesn't turn on your IR LED or any output circuit.
  */
 void IRrecvBase::No_Output (void) {
- pinMode(TIMER_PWM_PIN, OUTPUT);  
- digitalWrite(TIMER_PWM_PIN, LOW); // When not sending PWM, we want it low    
+  pinMode(TIMER_PWM_PIN, OUTPUT);  
+  digitalWrite(TIMER_PWM_PIN, LOW); // When not sending PWM, we want it low    
 }
 
 // enable/disable blinking of pin 13 on IR processing
-void IRrecvBase::blink13(bool blinkflag)
-{
+void IRrecvBase::blink13(bool blinkflag) {
   irparams.blinkflag = blinkflag;
   if (blinkflag)
      pinMode(BLINKLED, OUTPUT);
@@ -990,8 +1071,8 @@ ISR(TIMER_INTR_NAME)
  * The hardware specific portions of IRsendBase
  */
 void IRsendBase::enableIROut(unsigned char khz) {
-//NOTE: the comments on this routine accompanied the original early version of IRremote library
-//which only used TIMER2. The parameters defined in IRLibTimer.h may or may not work this way.
+  // NOTE: the comments on this routine accompanied the original early version of IRremote library
+  // which only used TIMER2. The parameters defined in IRLibTimer.h may or may not work this way.
   // Enables IR output.  The khz value controls the modulation frequency in kilohertz.
   // The IR output will be on pin 3 (OC2B).
   // This routine is designed for 36-40KHz; if you use it for other values, it's up to you
@@ -1004,15 +1085,15 @@ void IRsendBase::enableIROut(unsigned char khz) {
   // See my Secrets of Arduino PWM at http://www.righto.com/2009/07/secrets-of-arduino-pwm.html for details.
   
   // Disable the Timer2 Interrupt (which is used for receiving IR)
- TIMER_DISABLE_INTR; //Timer2 Overflow Interrupt    
- pinMode(TIMER_PWM_PIN, OUTPUT);  
- digitalWrite(TIMER_PWM_PIN, LOW); // When not sending PWM, we want it low    
- TIMER_CONFIG_KHZ(khz);
- }
+  TIMER_DISABLE_INTR; //Timer2 Overflow Interrupt    
+  pinMode(TIMER_PWM_PIN, OUTPUT);  
+  digitalWrite(TIMER_PWM_PIN, LOW); // When not sending PWM, we want it low    
+  TIMER_CONFIG_KHZ(khz);
+}
 
 IRsendBase::IRsendBase () {
- pinMode(TIMER_PWM_PIN, OUTPUT);  
- digitalWrite(TIMER_PWM_PIN, LOW); // When not sending PWM, we want it low    
+  pinMode(TIMER_PWM_PIN, OUTPUT);  
+  digitalWrite(TIMER_PWM_PIN, LOW); // When not sending PWM, we want it low    
 }
 
 //The Arduino built in function delayMicroseconds has limits we wish to exceed
@@ -1022,21 +1103,20 @@ void  My_delay_uSecs(unsigned int T) {
 }
 
 void IRsendBase::mark(unsigned int time) {
- TIMER_ENABLE_PWM;
- My_delay_uSecs(time);
- Extent+=time;
+  TIMER_ENABLE_PWM;
+  My_delay_uSecs(time);
+  Extent+=time;
 }
 
 void IRsendBase::space(unsigned int time) {
- TIMER_DISABLE_PWM;
- My_delay_uSecs(time);
- Extent+=time;
+  TIMER_DISABLE_PWM;
+  My_delay_uSecs(time);
+  Extent+=time;
 }
 
 /*
  * Various debugging routines
  */
-
 
 #ifdef TRACE
 void ATTEMPT_MESSAGE(const __FlashStringHelper * s) {Serial.print(F("Attempting ")); Serial.print(s); Serial.println(F(" decode:"));};

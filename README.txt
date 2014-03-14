@@ -70,6 +70,7 @@ Samsung36	Demonstrates how to expand the library without recompiling it.
 DirecTV		Demonstrates additional protocol for DirecTV
 GIcable		Demonstrates additional protocol for GIcable used by Motorola cable boxes
 Note: I did not port any of the other demo sketches although I may add IRTest later.
+
 The manuals directory contains:
 IRLibReference.docx	Reference manual in Microsoft Word format
 IRLibReference.pdf	Reference manual in Adobe PDF format

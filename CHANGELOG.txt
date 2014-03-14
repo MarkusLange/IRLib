@@ -1,6 +1,9 @@
 Change Log for IRLib – an Arduino library for infrared encoding and decoding
 Copyright 2013-2014 by Chris Young http://tech.cyborg5.com/irlib/
 
+Version 1.32 – March 2014
+	Added IRdecodePanasonic and IRsendPanasonic for new Panasonic devices
+	Added defines for Teensy 3.1 in IRLibTimer for Interrupt and Blink13
 Version 1.31 – March 2014
 	Commented out debug code that was accidentally left active in 1.3 release
 Version 1.3	 – January 2014 

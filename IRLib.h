@@ -1,5 +1,5 @@
 /* IRLib.h from IRLib – an Arduino library for infrared encoding and decoding
- * Version 1.3   January 2014
+ * Version 1.32   January 2014
  * Copyright 2014 by Chris Young http://cyborg5.com
  *
  * This library is a major rewrite of IRemote by Ken Shirriff which was covered by
@@ -46,7 +46,7 @@
 #define VIRTUAL
 #endif
 
-#define RAWBUF 100 // Length of raw duration buffer (cannot exceed 255)
+#define RAWBUF 150// Length of raw duration buffer (cannot exceed 255)
 
 typedef char IRTYPES; //formerly was an enum
 #define UNKNOWN 0
@@ -58,7 +58,8 @@ typedef char IRTYPES; //formerly was an enum
 #define JVC 6
 #define NECX 7
 //#define ADDITIONAL (number) //make additional protocol 8 and change HASH_CODE to 9
-#define HASH_CODE 8
+#define PANASONIC 8
+#define HASH_CODE 9
 #define LAST_PROTOCOL HASH_CODE
 
 const __FlashStringHelper *Pnames(IRTYPES Type); //Returns a character string that is name of protocol.
@@ -70,6 +71,7 @@ public:
   IRdecodeBase(void);
   IRTYPES decode_type;           // NEC, SONY, RC5, UNKNOWN etc.
   unsigned long value;           // Decoded value
+  unsigned long panasonicAddress;// This is only used for decoding Panasonic data
   unsigned char bits;            // Number of bits in decoded value
   volatile unsigned int *rawbuf; // Raw intervals in microseconds
   unsigned char rawlen;          // Number of records in rawbuf.
@@ -137,6 +139,12 @@ public:
   virtual bool decode(void);
 };
 
+class IRdecodePanasonic: public virtual IRdecodeBase 
+{
+public:
+  virtual bool decode(void);
+};
+
 class IRdecodeJVC: public virtual IRdecodeBase 
 {
 public:
@@ -156,6 +164,7 @@ public virtual IRdecodeSony,
 public virtual IRdecodeRC5,
 public virtual IRdecodeRC6,
 public virtual IRdecodePanasonic_Old,
+public virtual IRdecodePanasonic,
 public virtual IRdecodeJVC,
 public virtual IRdecodeNECx
 // , public virtual IRdecodeADDITIONAL //add additional protocols here
@@ -215,6 +224,12 @@ public:
   void send(unsigned long data);
 };
 
+class IRsendPanasonic: public virtual IRsendBase
+{
+public:
+  void send(unsigned int data, unsigned long data2);
+};
+
 class IRsendJVC: public virtual IRsendBase
 {
 public:
@@ -234,6 +249,7 @@ public virtual IRsendRaw,
 public virtual IRsendRC5,
 public virtual IRsendRC6,
 public virtual IRsendPanasonic_Old,
+public virtual IRsendPanasonic,
 public virtual IRsendJVC,
 public virtual IRsendNECx
 // , public virtual IRsendADDITIONAL //add additional protocols here
@@ -273,6 +289,7 @@ public:
   void enableIRIn(void);
   void resume(void);
 };
+
 /* This receiver uses no interrupts or timers. Other interrupt driven receivers
  * allow you to do other things and call GetResults at your leisure to see if perhaps
  * a sequence has been received. Typically you would put GetResults in your loop
@@ -310,7 +327,6 @@ private:
   unsigned char intrnum;
 };
 
-
 //Do the actual blinking off and on
 //This is not part of IRrecvBase because it may need to be inside an ISR
 //and we cannot pass parameters to them.
@@ -319,6 +335,5 @@ void do_Blink(void);
 // Some useful constants
 // Decoded value for NEC when a repeat code is received
 #define REPEAT 0xffffffff
-
 
 #endif //IRLib_h

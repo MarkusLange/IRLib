@@ -1,5 +1,5 @@
 /* IRLibTimer.h from IRLib – an Arduino library for infrared encoding and decoding
- * Version 1.3   January 2014
+ * Version 1.32   January 2014
  * Copyright 2014 by Chris Young http://cyborg5.com
  *
  * This library is a major rewrite of IRemote by Ken Shirriff which was covered by
@@ -70,6 +70,10 @@
   //#define IR_USE_TIMER4_HS  // tx = pin 13
 #endif
 
+// Teensy 3.0 & 3.1
+#elif defined(__MK20DX128__) || defined(__MK20DX256__)
+  #define IR_USE_TIMER_CMT  // tx = pin 5
+
 // Teensy++ 1.0 & 2.0
 #elif defined(__AVR_AT90USB646__) || defined(__AVR_AT90USB1286__)
   //#define IR_USE_TIMER1   // tx = pin 25
@@ -86,10 +90,6 @@
   //#define IR_USE_TIMER1   // tx = pin 9
   #define IR_USE_TIMER2     // tx = pin 3
 #endif
-
-
-
-
 
 // defines for timer2 (8 bits)
 #if defined(IR_USE_TIMER2)
@@ -132,7 +132,6 @@
 #define TIMER_PWM_PIN        3  /* Arduino Duemilanove, Diecimila, LilyPad, etc */
 #endif
 
-
 // defines for timer1 (16 bits)
 #elif defined(IR_USE_TIMER1)
 #define TIMER_RESET
@@ -164,7 +163,6 @@
 #define TIMER_PWM_PIN        9  /* Arduino Duemilanove, Diecimila, LilyPad, etc */
 #endif
 
-
 // defines for timer3 (16 bits)
 #elif defined(IR_USE_TIMER3)
 #define TIMER_RESET
@@ -195,7 +193,6 @@
 #else
 #error "Please add OC3A pin number here\n"
 #endif
-
 
 // defines for timer4 (10 bits, high speed option)
 #elif defined(IR_USE_TIMER4_HS)
@@ -236,7 +233,6 @@
 #error "Please add OC4A pin number here\n"
 #endif
 
-
 // defines for timer4 (16 bits)
 #elif defined(IR_USE_TIMER4)
 #define TIMER_RESET
@@ -265,7 +261,6 @@
 #else
 #error "Please add OC4A pin number here\n"
 #endif
-
 
 // defines for timer5 (16 bits)
 #elif defined(IR_USE_TIMER5)
@@ -296,14 +291,63 @@
 #error "Please add OC5A pin number here\n"
 #endif
 
+// defines for special carrier modulator timer
+#elif defined(IR_USE_TIMER_CMT)
+#define TIMER_RESET ({			\
+	uint8_t tmp = CMT_MSC;		\
+	CMT_CMD2 = 30;			\
+})
+#define TIMER_ENABLE_PWM     CORE_PIN5_CONFIG = PORT_PCR_MUX(2)|PORT_PCR_DSE|PORT_PCR_SRE
+#define TIMER_DISABLE_PWM    CORE_PIN5_CONFIG = PORT_PCR_MUX(1)|PORT_PCR_DSE|PORT_PCR_SRE
+#define TIMER_ENABLE_INTR    NVIC_ENABLE_IRQ(IRQ_CMT)
+#define TIMER_DISABLE_INTR   NVIC_DISABLE_IRQ(IRQ_CMT)
+#define TIMER_INTR_NAME      cmt_isr
+#ifdef ISR
+#undef ISR
+#endif
+#define ISR(f) void f(void)
+#if F_BUS == 48000000
+#define CMT_PPS_VAL 5
+#else
+#define CMT_PPS_VAL 2
+#endif
+#define TIMER_CONFIG_KHZ(val) ({ 	\
+	SIM_SCGC4 |= SIM_SCGC4_CMT;	\
+	SIM_SOPT2 |= SIM_SOPT2_PTD7PAD;	\
+	CMT_PPS = CMT_PPS_VAL;		\
+	CMT_CGH1 = 2667 / val;		\
+	CMT_CGL1 = 5333 / val;		\
+	CMT_CMD1 = 0;			\
+	CMT_CMD2 = 30;			\
+	CMT_CMD3 = 0;			\
+	CMT_CMD4 = 0;			\
+	CMT_OC = 0x60;			\
+	CMT_MSC = 0x01;			\
+})
+#define TIMER_CONFIG_NORMAL() ({	\
+	SIM_SCGC4 |= SIM_SCGC4_CMT;	\
+	CMT_PPS = CMT_PPS_VAL;		\
+	CMT_CGH1 = 1;			\
+	CMT_CGL1 = 1;			\
+	CMT_CMD1 = 0;			\
+	CMT_CMD2 = 30;			\
+	CMT_CMD3 = 0;			\
+	CMT_CMD4 = 19;			\
+	CMT_OC = 0;			\
+	CMT_MSC = 0x03;			\
+})
+#define TIMER_PWM_PIN        5
 
 #else // unknown timer
 #error "Internal code configuration error, no known IR_USE_TIMER# defined\n"
 #endif
 
-
 // defines for blinking the LED
-#if defined(CORE_LED0_PIN)
+#if defined(LED_BUILTIN)
+#define BLINKLED       LED_BUILTIN
+#define BLINKLED_ON()  (digitalWrite(LED_BUILTIN, HIGH))
+#define BLINKLED_OFF() (digitalWrite(LED_BUILTIN, LOW))
+#elif defined(CORE_LED0_PIN)
 #define BLINKLED       CORE_LED0_PIN
 #define BLINKLED_ON()  (digitalWrite(CORE_LED0_PIN, HIGH))
 #define BLINKLED_OFF() (digitalWrite(CORE_LED0_PIN, LOW))
@@ -319,6 +363,10 @@
 //Leonardo not teensy. When using Timer4 output is on 13. Therefore disabling blink LED
 //You can add an LED elsewhere if you want
 #define BLINKLED       1
+#define BLINKLED_ON()  (digitalWrite(BLINKLED, HIGH))
+#define BLINKLED_OFF() (digitalWrite(BLINKLED, LOW))
+#elif defined(__MK20DX128__) || defined(__MK20DX256__)
+#define BLINKLED       13
 #define BLINKLED_ON()  (digitalWrite(BLINKLED, HIGH))
 #define BLINKLED_OFF() (digitalWrite(BLINKLED, LOW))
 #else
